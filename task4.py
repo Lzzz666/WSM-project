@@ -77,16 +77,23 @@ def print_top_10(documents,smilarity_results):
 
 
 # 1. 定義 MRR@10 函數
-def calculate_mrr(predictions, relevant_docs, k=10):
+def calculate_mrr10(top10_predictions, relevant_docs, k=10): 
     rr_sum = 0
-    for i, pred in enumerate(predictions):
-        for rank, doc in enumerate(pred):
-            if rank >= len(relevant_docs[pred]):
-                break
-            if doc == relevant_docs[pred][rank]:
-                rr_sum += 1 / rank
-                break
-    return rr_sum / len(predictions)
+    num_queries = len(top10_predictions)  # 记录查询的数量
+    for query, preds in top10_predictions.items():
+        print("Query: ", query)
+        print("Top 10 Predictions: ", preds)
+
+        # 检查相关文档是否存在
+        relevant_docs_for_query = relevant_docs.get(query, [])
+        for rank, doc in enumerate(preds[:k]):  # 只考虑前 k 个预测
+            if doc in relevant_docs_for_query:  # 检查文档是否是相关的
+                print(f"Found relevant document: {doc} at rank {rank + 1}")
+                rr_sum += 1 / (rank + 1)  # 加 1 是为了调整为 1-based rank
+                break  # 找到第一个相关文档后就跳出
+
+    # 避免除以零
+    return rr_sum / num_queries if num_queries > 0 else 0
             
 
     # for i, pred in enumerate(predictions):
@@ -221,7 +228,7 @@ def main():
 
 
     print("MRR@10")
-    print(calculate_mrr(predictions,rel))
+    print(calculate_mrr10(predictions,rel))
     # print("MAP@10")
     # calculate_map()
     # print("RECALL@10")
