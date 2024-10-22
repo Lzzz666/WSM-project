@@ -7,7 +7,7 @@ import numpy as np
 import argparse
 from tqdm import tqdm 
 from Parser import Parser
-
+from nltk.stem import PorterStemmer
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
@@ -15,6 +15,7 @@ from textblob import TextBlob as tb
 
 
 lemmatizer = WordNetLemmatizer()
+ps = PorterStemmer()
 
 def normalize_doc(doc):
     parser = Parser()
@@ -58,9 +59,14 @@ def lemmatize_lower_sentence(sentence,stopwords):
     # 進行詞性還原
     lemmatized_words = []
     for word in words:
-        lemmatized_word = lemmatizer.lemmatize(word, pos='v')
+        lemmatized_word = ps.stem(word.lower())
         lemmatized_words.append(lemmatized_word)
     return ' '.join(lemmatized_words)
+
+# def prerprocess(text,stopwords):
+#     words = [lemmatizer.stem(word,lower()) for word in text.words if word.lower() not in stopwords]
+#     return words
+
 
 def print_top_10_and_return_first(documents,smilarity_results,reversed=True):
     if reversed:
