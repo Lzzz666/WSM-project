@@ -17,6 +17,9 @@ import csv
 
 
 
+import nltk
+nltk.download('punkt_tab')
+nltk.download('wordnet')
 
 lemmatizer = WordNetLemmatizer()
 
@@ -70,8 +73,8 @@ def print_top_10(documents,smilarity_results):
 
     results = [(filename, sim) for (filename, sim) in zip(documents.keys(), smilarity_results)]
     top_10_results = sorted(results, key=lambda x: x[1], reverse=True)[:10]
-    for filename, sim in top_10_results:
-        print(f"{filename}: {sim:.4f}")
+    # for filename, sim in top_10_results:
+    #     print(f"{filename}: {sim:.4f}")
     converted_data = [int(item[0].replace('d', '').replace('.txt', '')) for item in top_10_results]
     return converted_data
 
@@ -81,14 +84,14 @@ def calculate_mrr10(top10_predictions, relevant_docs, k=10):
     rr_sum = 0
     num_queries = len(top10_predictions)  # 记录查询的数量
     for query, preds in top10_predictions.items():
-        print("Query: ", query)
-        print("Top 10 Predictions: ", preds)
+        # print("Query: ", query)
+        # print("Top 10 Predictions: ", preds)
 
         # 检查相关文档是否存在
         relevant_docs_for_query = relevant_docs.get(query, [])
         for rank, doc in enumerate(preds[:k]):  # 只考虑前 k 个预测
             if doc in relevant_docs_for_query:  # 检查文档是否是相关的
-                print(f"Found relevant document: {doc} at rank {rank + 1}")
+                # print(f"Found relevant document: {doc} at rank {rank + 1}")
                 rr_sum += 1 / (rank + 1)  # 加 1 是为了调整为 1-based rank
                 break  # 找到第一个相关文档后就跳出
 
@@ -96,35 +99,57 @@ def calculate_mrr10(top10_predictions, relevant_docs, k=10):
     return rr_sum / num_queries if num_queries > 0 else 0
             
 
-    # for i, pred in enumerate(predictions):
-    #     for rank, doc in enumerate(pred[:k], 1):
-    #         if doc in relevant_docs[i]:
-    #             rr_sum += 1 / rank
-    #             break
-    
 
 # 2. 定義 MAP@10 函數
-def calculate_map(predictions, relevant_docs, k=10):
-    ap_sum = 0
-    for i, pred in enumerate(predictions):
-        relevant = 0
-        precision_sum = 0
-        for rank, doc in enumerate(pred[:k], 1):
-            if doc in relevant_docs[i]:
-                relevant += 1
-                precision_sum += relevant / rank
-        if relevant > 0:
-            ap_sum += precision_sum / relevant
-    return ap_sum / len(predictions)
+def calculate_map(top10_predictions, relevant_docs, k=10):
+    ap_sum = 0.0  # 平均精度总和
+    num_queries = len(top10_predictions)  # 记录查询的数量
+
+    for query, preds in top10_predictions.items():
+        # print("Query: ", query)
+        # print("Top 10 Predictions: ", preds)
+
+        relevant_docs_for_query = relevant_docs.get(query, [])
+        relevant_count = 0
+        precision_sum = 0.0
+
+        for rank, doc in enumerate(preds[:k]):  # 只考虑前 k 个预测
+            if doc in relevant_docs_for_query:  # 检查文档是否是相关的
+                relevant_count += 1
+                precision_sum += relevant_count / (rank + 1)  # 计算精度
+
+        # 计算当前查询的平均精度
+        ap = precision_sum / relevant_count if relevant_count > 0 else 0.0
+        # print(f"Average Precision for query '{query}': {ap}")
+        ap_sum += ap
+
+    # 避免除以零
+    return ap_sum / num_queries if num_queries > 0 else 0.0
 
 # 3. 定義 Recall@10 函數
-def calculate_recall(predictions, relevant_docs, k=10):
-    recall_sum = 0
-    for i, pred in enumerate(predictions):
-        relevant = len(relevant_docs[i])
-        hits = len([doc for doc in pred[:k] if doc in relevant_docs[i]])
-        recall_sum += hits / relevant
-    return recall_sum / len(predictions)
+def calculate_recall(top10_predictions, relevant_docs, k=10):
+    recall_sum = 0.0  # 召回率总和
+    num_queries = len(top10_predictions)  # 记录查询的数量
+
+    for query, preds in top10_predictions.items():
+        # print("Query: ", query)
+        # print("Top 10 Predictions: ", preds)
+
+        relevant_docs_for_query = relevant_docs.get(query, [])
+        total_relevant_count = len(relevant_docs_for_query)  # 相关文档的总数量
+        retrieved_relevant_count = 0  # 检索到的相关文档数量
+
+        for doc in preds[:k]:  # 只考虑前 k 个预测
+            if doc in relevant_docs_for_query:  # 检查文档是否是相关的
+                retrieved_relevant_count += 1
+
+        # 计算当前查询的召回率
+        recall = (retrieved_relevant_count / total_relevant_count) if total_relevant_count > 0 else 0.0
+        # print(f"Recall for query '{query}': {recall}")
+        recall_sum += recall
+
+    # 避免除以零
+    return recall_sum / num_queries if num_queries > 0 else 0.0
 
 def main():
     #TODO: 將 EnglishNews 中的文件讀取出來
@@ -182,28 +207,37 @@ def main():
     #     print("Result_Query: ",result_query)
 
     #TODO:  TF Weighting (Raw TF in course PPT) + Cosine Similarity
-    tf_vectors = []
+    tf_vectors = []  # 每篇文件的 TF 向量
     for doc in tqdm(lemmatized_lower_documents, desc="Processing TF-Vectors"): #如何加速
         tf_vector = [tfidf.tf(word, doc) for word in keys_target]
         tf_vectors.append(tf_vector)
     # for vector in tf_vectors:
     #     print("tf_vector: ",vector)
-    idf_vectors = []
+    idf_vectors = []  # 每個字的 IDF 值
     idf_vectors = [tfidf.idf(word,lemmatized_lower_documents) for word in keys_target]
         
-    tfidf_vectors = []
+    tfidf_vectors = [] # 每篇文件的 TF-IDF 向量
     for tf_vector in  tqdm(tf_vectors, desc="Processing TFIDF-Vectors"):  #如何加速
         tfidf_vector = [tf * idf for tf, idf in zip(tf_vector, idf_vectors)]
         tfidf_vectors.append(tfidf_vector)
+    # for vector in tfidf_vectors:
+    #     print("tfidf_vector: ",vector) #5
 
+    # for result_query in result_querys:
+    #     print("result_query: ",result_query) #76
     tfidf_similarities_matrix = []
-    tfidf_similarities = []
+    
+    # i = 0
     for result_query in  tqdm(result_querys, desc="Processing TFIDF-Vectors similiarity"): #如何加速
+        tfidf_similarities = []
         for tfidf_vector in tfidf_vectors:
             tfidf_similarity = cosine_similarity(result_query, tfidf_vector)
             tfidf_similarities.append(tfidf_similarity)
+            # print(i,"tfidf_similarity: ",tfidf_similarity)
+            # i = i+1
         tfidf_similarities_matrix.append(tfidf_similarities)
-    # print(tfidf_similarities_matrix)
+    # for vector in tfidf_similarities_matrix:
+    #     print("tfidf_similarities_matrix: ",vector) 
 
     # sorted_queries = sorted(querys.keys(), key=lambda x: int(x[1:]))  # 如果鍵是 q0, q1 這樣的格式，按數字排序
     predictions = {}
@@ -211,9 +245,10 @@ def main():
         print("Query: ",query)
         print("TF-IDF Cosine")
         print("NewsID   Score")
+        # print("tfidf_similarities_matrix: ",tfidf_similarities_matrix[i])
         predictions[query.replace(".txt", "")] = print_top_10(documents,tfidf_similarities_matrix[i])
 
-    print(predictions)
+    # print(predictions)
     
     # for i ,rel in enumerate(rel.keys()):
     #     print("rel",rel)
@@ -229,10 +264,10 @@ def main():
 
     print("MRR@10")
     print(calculate_mrr10(predictions,rel))
-    # print("MAP@10")
-    # calculate_map()
-    # print("RECALL@10")
-    # calculate_recall()
+    print("MAP@10")
+    print(calculate_map(predictions,rel))
+    print("RECALL@10")
+    print(calculate_recall(predictions,rel))
 
 if __name__ == "__main__":
     main()
