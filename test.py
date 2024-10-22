@@ -100,7 +100,10 @@ def task3(args):
     #TODO:  TF Weighting (Raw TF in course PPT) + Cosine Similarity
     tf_vectors = []
     for doc in tqdm(stem_docs, desc="Processing TF-Vectors"): #如何加速
-        tf_vector = [tfidf.tf(word, doc) for word in keys_target]
+        # Calculate TF for the document only once
+        tf_count = calculate_tf(doc)
+        # Create a vector for the keys_target words
+        tf_vector = [tf_count[word] for word in keys_target]  # Get count from tf_count dictionary
         tf_vectors.append(tf_vector)
 
     tf_similarities = []
